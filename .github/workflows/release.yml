@@ -1,0 +1,81 @@
+name: release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Upstream tag to build. Leave empty for the latest upstream release.
+        type: string
+        default: ""
+      force:
+        description: Build and release even if the plugin already has this upstream version.
+        type: boolean
+        default: false
+      dry_run:
+        description: Build and test, but do not release. The package is kept as a workflow artifact.
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: dtomlinson91/unraid-plugin-template
+          path: .template
+
+      - name: Resolve the version
+        run: .template/scripts/resolve.sh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_FORCE: ${{ inputs.force }}
+
+      - name: Get the binary
+        if: env.SKIP != 'true'
+        run: .template/scripts/fetch.sh
+
+      - name: Make the Slackware package
+        if: env.SKIP != 'true'
+        run: >-
+          docker run --rm -v "$PWD:/w" -w /w -e PACKAGE
+          vbatts/slackware:14.2 bash .template/scripts/package.sh
+
+      - name: Test the package on Slackware 14.2 (Unraid 6.x)
+        if: env.SKIP != 'true'
+        run: >-
+          docker run --rm -v "$PWD:/w" -w /w -e PACKAGE -e VERSION
+          vbatts/slackware:14.2 bash .template/scripts/test.sh
+
+      - name: Test the package on Slackware current (Unraid 7.x)
+        if: env.SKIP != 'true'
+        run: >-
+          docker run --rm -v "$PWD:/w" -w /w -e PACKAGE -e VERSION
+          aclemons/slackware:current bash .template/scripts/test.sh
+
+      - name: Write the .plg
+        if: env.SKIP != 'true'
+        run: |
+          . ./plugin.conf
+          NAME=$NAME TITLE=$TITLE python3 .template/scripts/render.py .template/plugin.plg.tmpl
+          git diff --stat
+
+      - name: Keep the package as an artifact
+        if: env.SKIP != 'true' && inputs.dry_run
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PACKAGE }}
+          path: |
+            build/*.txz
+            build/*.sha256
+            *.plg
+
+      - name: Release
+        if: env.SKIP != 'true' && !inputs.dry_run
+        run: .template/scripts/publish.sh

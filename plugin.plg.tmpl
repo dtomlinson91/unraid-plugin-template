@@ -1,0 +1,59 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+  <!ENTITY name       "@NAME@">
+  <!ENTITY title      "@TITLE@">
+  <!ENTITY author     "dtomlinson">
+  <!ENTITY version    "@PLUGIN_VERSION@">
+  <!ENTITY upstream   "@VERSION@">
+  <!ENTITY package    "@PACKAGE@">
+  <!ENTITY sha256     "@SHA256@">
+  <!ENTITY gitURL     "https://github.com/dtomlinson91/&name;">
+  <!ENTITY pluginURL  "&gitURL;/raw/main/&name;.plg">
+  <!ENTITY packageURL "&gitURL;/releases/download/&version;/&package;.txz">
+  <!ENTITY plugin     "/boot/config/plugins/&name;">
+]>
+<PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" support="&gitURL;" min="6.8.3">
+
+<CHANGES>
+@CHANGES@
+</CHANGES>
+
+<FILE Name="&plugin;/&package;.txz">
+<URL>&packageURL;</URL>
+<SHA256>&sha256;</SHA256>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
+if ! echo "&sha256;  &plugin;/&package;.txz" | sha256sum --check --status; then
+  echo "*** the sha256 of &package;.txz does not match - removing the file ***"
+  rm -f "&plugin;/&package;.txz"
+  exit 1
+fi
+echo "*** the sha256 of &package;.txz is correct ***"
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
+for f in /var/log/packages/&name;-*; do
+  [ -e "$f" ] || continue
+  p=$(basename "$f")
+  [ "$p" = "&package;" ] || removepkg "$p"
+done
+find "&plugin;" -maxdepth 1 -type f -name "&name;-*" ! -name "&package;.txz" -print -delete
+upgradepkg --install-new "&plugin;/&package;.txz"
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+for f in /var/log/packages/&name;-*; do
+  [ -e "$f" ] || continue
+  removepkg "$(basename "$f")"
+done
+rm -rf "&plugin;" "/usr/local/emhttp/plugins/&name;"
+echo "*** removed &title; ***"
+</INLINE>
+</FILE>
+</PLUGIN>
