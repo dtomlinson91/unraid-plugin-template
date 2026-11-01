@@ -54,6 +54,41 @@ With `dry_run: true`, the workflow stops after step 7 and keeps the package as a
 | `TEST_CMD` | | A shell command to run after the test install. |
 | `STATIC` | `yes` | Set to `no` to allow a dynamic binary. |
 
+## Slackware packages for each Unraid base
+
+Some tools have no static build, for example zsh. For these tools, the workflow `release-slackware.yml` repacks the official Slackware package. It makes one package for each Unraid base. The `.plg` installs the package for the running Unraid version, and it refuses other versions.
+
+The plugin repo calls `release-slackware.yml` instead of `release.yml`. It has the inputs `force` and `dry_run`, but no `version`.
+
+| Variable | Use |
+|---|---|
+| `NAME`, `TITLE` | The same as in `release.yml`. |
+| `SLACK_PKG` | The Slackware package name, for example `zsh`. |
+| `BINARY` | The full path of the command to test, for example `/bin/zsh`. |
+| `BASES` | A bash array. Each line holds 4 fields: the Unraid version glob, the Slackware tree, the glibc version of that Unraid base, and the test image. |
+| `UPSTREAM_URL` | The link in the release notes. |
+| `MIRROR` | Optional. The Slackware mirror. The default is `https://slackware.osuosl.org`. |
+| `VERSION_ARGS`, `TEST_CMD` | The same as in `release.yml`. |
+
+```bash
+BASES=(
+  "6.12.* 15.0 2.37 aclemons/slackware:15.0"
+  "7.3.* current 2.44 aclemons/slackware:current"
+)
+```
+
+The workflow does these steps:
+
+1. It finds the package of each base in `CHECKSUMS.md5` of the tree. A package in `patches/` comes before the main tree.
+2. It stops if the `.plg` already has the same Slackware packages, unless `force` is true.
+3. It downloads each package and checks the md5 and the GPG signature of the Slackware Linux Project.
+4. It refuses a package that needs a newer glibc than its Unraid base has. The test images cannot find this problem, because `slackware:current` moves on after Unraid freezes its base.
+5. It adds the README to each package and makes `<name>-<version>-x86_64-<plugin version>_<tree>.txz`.
+6. It installs, runs and removes each package in the test image of its base.
+7. It writes `<name>.plg` from `plugin-slackware.plg.tmpl`. The `.plg` downloads all packages to the flash drive, so the package for the next Unraid version is there before an OS update.
+
+A new Unraid version needs a new line in `BASES`, then a release with `force`.
+
 ## Install a plugin
 
 In the Unraid web UI, go to **Plugins > Install Plugin** and paste the URL of the `.plg`:

@@ -1,0 +1,76 @@
+name: release-slackware
+
+on:
+  workflow_call:
+    inputs:
+      force:
+        description: Build and release even if the plugin already has these Slackware packages.
+        type: boolean
+        default: false
+      dry_run:
+        description: Build and test, but do not release. The packages are kept as a workflow artifact.
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: dtomlinson91/unraid-plugin-template
+          path: .template
+
+      - name: Find the Slackware packages
+        run: .template/scripts/slackware/resolve.sh
+        env:
+          INPUT_FORCE: ${{ inputs.force }}
+
+      - name: Get and check the Slackware packages
+        if: env.SKIP != 'true'
+        run: .template/scripts/slackware/fetch.sh
+
+      - name: Make the plugin packages
+        if: env.SKIP != 'true'
+        run: >-
+          docker run --rm -v "$PWD:/w" -w /w
+          aclemons/slackware:15.0 bash .template/scripts/slackware/package.sh
+
+      - name: Test each package in the Slackware container of its base
+        if: env.SKIP != 'true'
+        run: |
+          while IFS=$'\t' read -r glob tree _glibc image _rest; do
+            echo "=== Unraid $glob: $image"
+            docker run --rm -v "$PWD:/w" -w /w "$image" bash .template/scripts/slackware/test.sh "$tree" </dev/null
+          done <build/bases.tsv
+
+      - name: Write the .plg
+        if: env.SKIP != 'true'
+        run: |
+          . ./plugin.conf
+          NAME=$NAME TITLE=$TITLE python3 .template/scripts/slackware/render.py .template/plugin-slackware.plg.tmpl
+          git diff --stat
+
+      - name: Keep the packages as an artifact
+        if: env.SKIP != 'true' && inputs.dry_run
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.event.repository.name }}-${{ env.PLUGIN_VERSION }}
+          path: |
+            build/*.txz
+            build/*.sha256
+            build/bases.tsv
+            *.plg
+
+      - name: Release
+        if: env.SKIP != 'true' && !inputs.dry_run
+        run: |
+          ASSETS=$(ls build/*.txz build/*.txz.sha256 | tr '\n' ' ')
+          export ASSETS
+          .template/scripts/publish.sh
