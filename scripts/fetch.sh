@@ -52,6 +52,9 @@ case $file in
   *.zip)
     unzip -q "$file" -d build/x
     ;;
+  *.gz)
+    gunzip -c "$file" >build/x/"$binary_src"
+    ;;
   *)
     cp "$file" build/x/"$binary_src"
     ;;
