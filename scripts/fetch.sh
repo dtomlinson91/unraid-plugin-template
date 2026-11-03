@@ -60,7 +60,12 @@ case $file in
     ;;
 esac
 
-matches=$(find build/x -type f -name "$binary_src")
+# a BINARY_SRC with a slash is the end of a path in the archive
+if [[ $binary_src == */* ]]; then
+  matches=$(find build/x -type f -path "*/$binary_src")
+else
+  matches=$(find build/x -type f -name "$binary_src")
+fi
 count=$(printf '%s\n' "$matches" | grep -c . || true)
 if [ "$count" -ne 1 ]; then
   echo "error: found $count files named '$binary_src' in $(basename "$file")" >&2

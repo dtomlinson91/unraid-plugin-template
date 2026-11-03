@@ -46,7 +46,7 @@ With `dry_run: true`, the workflow stops after step 7 and keeps the package as a
 | `URL` | | `url` only. The download URL. `{tag}` and `{version}` are replaced. |
 | `LATEST_CMD` | | A shell command that prints the latest upstream tag. It replaces the GitHub latest release. |
 | `UPSTREAM_URL` | the GitHub release | The link in the release notes. |
-| `BINARY_SRC` | `BINARY` | The file name in the archive or in the build, if it is not `BINARY`. |
+| `BINARY_SRC` | `BINARY` | The file name in the archive or in the build, if it is not `BINARY`. A value with a `/` is the end of the path in the archive, for example `usr/bin/fastfetch`. |
 | `INSTALL_DIR` | `/usr/local/bin` | The directory of the installed command. |
 | `CARGO_ARGS` | | `cargo` only. More arguments for `cargo build`. |
 | `VERSION_ARGS` | `--version` | The arguments that make the command print its version. |
